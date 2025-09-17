@@ -8,3 +8,5 @@ __pycache__/
 .env
 infra/.env
 *.db
+*.sqlite
+.agent_cache.sqlite
