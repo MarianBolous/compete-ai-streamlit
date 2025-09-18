@@ -1,4 +1,4 @@
- -- /dev/null 
+-- /dev/null 
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
   <!-- Styling -->
   <style>
@@ -85,4 +85,4 @@
   
   <rect x="600" y="590" width="20" height="15" class="utils-box" />
   <text x="625" y="603" class="code" text-anchor="start">Utility Components</text>
-</svg>""
+</svg>
