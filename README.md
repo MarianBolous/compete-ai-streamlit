@@ -60,7 +60,7 @@ A production-ready competitive intelligence platform that provides real-time ana
 
 Below is a visual representation of the CompeteAI project structure:
 
-![CompeteAI Project Structure](https://github.com/MarianBolous/compete-ai-streamlit/raw/main/assets/project_structure.svg)
+![CompeteAI Project Structure](https://github.com/MarianBolous/compete-ai-streamlit/raw/main/assets/project_structure_fixed.svg)
 
 ### Multi-Agent Orchestration Pattern
 The platform implements a sophisticated **Plan → Delegate → Evaluate → Iterate → Finalize** architecture:

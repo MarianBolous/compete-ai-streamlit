@@ -39,7 +39,11 @@ from dotenv import load_dotenv
 
 # Load env once at import time
 load_dotenv()
+
+# Environment variables
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")  # ensure set in .env
+ALLOW_BYOK = os.getenv("ALLOW_BYOK", "true").lower() == "true"
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
 class DataCollectionAgent:
     """
@@ -49,11 +53,19 @@ class DataCollectionAgent:
 
     def __init__(self, serpapi_key: Optional[str] = None):
         self.serpapi_key = serpapi_key or SERPAPI_KEY
-        if not self.serpapi_key:
-            raise RuntimeError(
-                "SERPAPI_KEY not found. Set it in .env or pass serpapi_key to DataCollectionAgent."
-            )
+        if not self.serpapi_key and not DEMO_MODE:
+            if ALLOW_BYOK:
+                raise RuntimeError(
+                    "SERPAPI_KEY not found. You can provide your own key (BYOK) or set it in .env."
+                )
+            else:
+                raise RuntimeError(
+                    "SERPAPI_KEY not found. Set it in .env or contact your administrator to enable BYOK."
+                )
+        
+        # In demo mode, we'll use mock data regardless of API key status
         self.base_url = "https://serpapi.com/search.json"
+        self.key_source = "user-provided" if serpapi_key else ("server" if SERPAPI_KEY else "demo")
 
     def _google_news(self, query: str, num: int = 5) -> List[Dict[str, Any]]:
         params = {
@@ -409,9 +421,11 @@ def calculate_confidence_score(coverage_data: Dict) -> float:
 class NewsTool:
     """Tool for gathering news and press releases about companies."""
     
-    def __init__(self, ctx: ToolContext):
+    def __init__(self, ctx: ToolContext, serpapi_key: Optional[str] = None):
         self.ctx = ctx
         self.session = ctx.http_session or build_retry_session(ctx.max_retries)
+        self.serpapi_key = serpapi_key or SERPAPI_KEY
+        self.serpapi_key_provided = serpapi_key is not None
 
     def run(self, company_name: str, limit: int = 10) -> List[Dict]:
         """
@@ -438,8 +452,9 @@ class NewsTool:
 
     def _get_real_news_data(self, company_name: str, limit: int) -> List[Dict]:
         """Get real news data using SerpAPI."""
-        serpapi_key = SERPAPI_KEY
+        serpapi_key = self.serpapi_key
         logger.info(f"SERPAPI_KEY status: {'Found' if serpapi_key else 'Not found'}")
+        logger.info(f"SERPAPI_KEY source: {'User-provided' if hasattr(self, 'serpapi_key_provided') and self.serpapi_key_provided else 'Server'}")
         if not serpapi_key:
             logger.warning("SERPAPI_KEY not found, falling back to mock data")
             return self._mock_news_data(company_name, limit)
@@ -936,17 +951,33 @@ class DataCollectionAgent:
     Implements the "stop-when-satisfied" criterion with comprehensive guardrails.
     """
     
-    def __init__(self, ctx: Optional[ToolContext] = None):
+    def __init__(self, ctx: Optional[ToolContext] = None, serpapi_key: Optional[str] = None):
         self.ctx = ctx or ToolContext()
         self.session = self.ctx.http_session or build_retry_session(self.ctx.max_retries)
+        
+        # Handle SERPAPI key configuration for BYOK feature
+        self.serpapi_key = serpapi_key or SERPAPI_KEY
+        if not self.serpapi_key and not self.ctx.demo_mode and not DEMO_MODE:
+            if ALLOW_BYOK:
+                raise RuntimeError(
+                    "SERPAPI_KEY not found. You can provide your own key (BYOK) or set it in .env."
+                )
+            else:
+                raise RuntimeError(
+                    "SERPAPI_KEY not found. Set it in .env or contact your administrator to enable BYOK."
+                )
+        
+        # Track key source for transparency
+        self.key_source = "user-provided" if serpapi_key else ("server" if SERPAPI_KEY else "demo")
+        logger.info(f"DataCollectionAgent initialized with key source: {self.key_source}")
         
         # Initialize guardrail components
         self.cache = SQLiteKVCache(ttl_seconds=self.ctx.cache_ttl_hours * 3600) if self.ctx.cache_enabled else None
         self.rate_limiter = RateLimiter(max_calls_per_window=30, window_seconds=60) if self.ctx.rate_limit_enabled else None
         
-        # Initialize tools
+        # Initialize tools with the SERPAPI key for BYOK support
         self.tools = {
-            'news': NewsTool(self.ctx),
+            'news': NewsTool(self.ctx, self.serpapi_key),
             'pricing': PricingTool(self.ctx),
             'features': FeatureTool(self.ctx),
             'jobs': JobsTool(self.ctx),
@@ -1333,12 +1364,13 @@ class DataCollectionAgent:
 # MAIN INTERFACE
 # ====================================================================
 
-def create_data_collection_agent(demo_mode: bool = False, **kwargs) -> DataCollectionAgent:
+def create_data_collection_agent(demo_mode: bool = False, serpapi_key: Optional[str] = None, **kwargs) -> DataCollectionAgent:
     """
     Factory function to create a configured DataCollectionAgent.
     
     Args:
         demo_mode: Whether to use mock data (True) or real APIs (False)
+        serpapi_key: Optional SERPAPI key for BYOK (Bring Your Own Key) support
         **kwargs: Additional configuration options
     
     Returns:
@@ -1349,7 +1381,8 @@ def create_data_collection_agent(demo_mode: bool = False, **kwargs) -> DataColle
         **kwargs
     )
     
-    return DataCollectionAgent(ctx)
+    # Pass the SERPAPI key to the DataCollectionAgent for BYOK support
+    return DataCollectionAgent(ctx, serpapi_key=serpapi_key)
 
 # For backward compatibility
 if __name__ == "__main__":

@@ -1270,30 +1270,46 @@ class AIAnalysisEngine:
         self.ui_callbacks = ui_callbacks
         self.analysis_callbacks = analysis_callbacks
 
-        # --- Auto-initialize LLM clients from env if not provided ---
-        OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-        ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+        # --- Load BYOK environment settings ---
+        ALLOW_BYOK = os.getenv("ALLOW_BYOK", "true").lower() == "true"
+        DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
+        # --- Auto-initialize LLM clients from env if not provided and not already set by user ---
         if self.openai_client is None:
+            OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
             if not OPENAI_API_KEY:
-                logger.warning("OPENAI_API_KEY not found. LLM features disabled; running in demo mode.")
+                if DEMO_MODE:
+                    logger.info("🚀 Running in demo mode. LLM features will use mock data.")
+                else:
+                    logger.warning("⚠️ OPENAI_API_KEY not found and not running in demo mode. LLM features may be limited.")
                 self.openai_client = None
             else:
                 try:
                     self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
-                    logger.info("✅ OpenAI client initialized from environment.")
+                    logger.info("✅ OpenAI client initialized from server environment.")
                 except Exception as e:
-                    logger.error(f"Failed to initialize OpenAI client: {e}")
+                    logger.error(f"❌ Failed to initialize OpenAI client: {e}")
                     self.openai_client = None
+        else:
+            # User provided client - likely using their own API key
+            logger.info("✅ OpenAI client provided by user (BYOK feature).")
 
-        if self.anthropic_client is None and ANTHROPIC_API_KEY:
-            try:
-                import anthropic
-                self.anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-                logger.info("✅ Anthropic client initialized from environment.")
-            except Exception as e:
-                logger.error(f"Failed to initialize Anthropic client: {e}")
+        if self.anthropic_client is None:
+            ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+            if ANTHROPIC_API_KEY:
+                try:
+                    import anthropic
+                    self.anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                    logger.info("✅ Anthropic client initialized from environment.")
+                except Exception as e:
+                    logger.error(f"❌ Failed to initialize Anthropic client: {e}")
+                    self.anthropic_client = None
+            else:
+                logger.info("ℹ️ Anthropic API key not provided. Anthropic features disabled.")
                 self.anthropic_client = None
+        else:
+            # User provided client
+            logger.info("✅ Anthropic client provided by user (BYOK feature).")
         # ------------------------------------------------------------
 
         # Initialize tools

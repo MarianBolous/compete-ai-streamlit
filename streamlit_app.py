@@ -16,12 +16,11 @@ import asyncio
 import json
 import logging
 import time
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, asdict, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Callable
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Callable, Tuple, Union
 
 # External imports
 import nest_asyncio
@@ -29,6 +28,16 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from fastapi import FastAPI, Header, HTTPException
+from pydantic import BaseModel
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Apply nest_asyncio to handle async in Streamlit
 try:
@@ -43,12 +52,55 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ----------------------------- 
+# -----------------------------
 # Import version
 from version import __version__ as app_version
 
+# Environment variables
+SERVER_KEY = os.getenv("OPENAI_API_KEY", "")
+ALLOW_BYOK = os.getenv("ALLOW_BYOK", "true").lower() == "true"
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+
+# ----------------------------- 
+# FastAPI Application Setup
+# ----------------------------- 
+
+app = FastAPI()
+
+class AnalyzeRequest(BaseModel):
+    prompt: str
+
+def pick_key(user_key_header: str | None) -> tuple[str | None, str]:
+    if ALLOW_BYOK and user_key_header and user_key_header.startswith("sk-"):
+        return user_key_header, "user"
+    if SERVER_KEY.startswith("sk-"):
+        return SERVER_KEY, "server"
+    if DEMO_MODE:
+        return None, "demo"
+    return None, "none"
+
+@app.post("/analyze")
+def analyze(req: AnalyzeRequest, x_user_openai_key: str | None = Header(default=None)):
+    key, source = pick_key(x_user_openai_key)
+
+    if source == "demo":
+        return {"provider": "demo", "model": "mock-gpt", "content": f"[DEMO] {req.prompt[:80]}...", "confidence": 0.65}
+
+    if not key:
+        raise HTTPException(status_code=400, detail="No API key available. Enable server key or BYOK, or use demo mode.")
+
+    headers = {"Authorization": f"Bearer {key}"}
+    payload = {"model": "gpt-4o-mini", "input": req.prompt}
+    r = requests.post("https://api.openai.com/v1/responses", json=payload, headers=headers, timeout=45)
+    r.raise_for_status()
+    data = r.json()
+    text = (data.get("output", {}) or data.get("content") or data).__str__()
+    return {"provider": "openai", "model": payload["model"], "content": text[:4000], "confidence": 0.8}
+
 # ----------------------------- 
 # Logo and Asset Paths
+# ----------------------------- 
+
 import os
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 LOGO_PATH = os.path.join(ASSETS_DIR, 'logo.svg')
@@ -146,6 +198,115 @@ st.markdown("""
         content: '';
         position: absolute;
         top: 0;
+    
+    /* Modern Compact BYOK Section Styling */
+    .byok-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin: 8px 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        color: white;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .byok-section:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.16);
+    }
+    
+    .byok-title {
+        font-size: 1.05rem;
+        font-weight: bold;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    /* Centered BYOK text with individual brand colors for each letter */
+    .byok-section {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .byok-title {
+        font-size: 1.5rem;
+        font-weight: 900;
+        padding: 8px 0;
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        margin: 0 auto;
+        width: fit-content;
+    }
+    
+    /* Individual colors for each letter using brand colors */
+    .byok-letter-b {
+        color: #1f77b4; /* Blue */
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        transform: scale(1.1);
+        display: inline-block;
+    }
+    
+    .byok-letter-y {
+        color: #ff7f0e; /* Orange */
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        transform: scale(1.1);
+        display: inline-block;
+    }
+    
+    .byok-letter-o {
+        color: #2ca02c; /* Green */
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        transform: scale(1.1);
+        display: inline-block;
+    }
+    
+    .byok-letter-k {
+        color: #9467bd; /* Purple */
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        transform: scale(1.1);
+        display: inline-block;
+    }
+    
+    /* Optional hover effects for each letter */
+    .byok-title span:hover {
+        transform: scale(1.2) translateY(-2px);
+        transition: all 0.3s ease;
+    }
+    
+    .byok-description {
+        font-size: 0.85rem;
+        opacity: 0.95;
+        margin-bottom: 6px;
+        line-height: 1.3;
+        font-weight: 500;
+    }
+    
+    .byok-badge {
+        background: rgba(255,255,255,0.2);
+        border-radius: 10px;
+        padding: 1px 8px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        display: inline-block;
+    }
+    
+    .server-keys-badge {
+        background: rgba(255,255,255,0.9);
+        color: #495057;
+        border-radius: 10px;
+        padding: 1px 8px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        display: inline-block;
+    }
         left: 0;
         width: 5px;
         height: 100%;
@@ -173,8 +334,8 @@ st.markdown("""
         padding: 20px;
         font-size: 2rem;
         font-weight: bold;
-        color: #1f77b4;
-        border-bottom: 2px solid #1f77b4;
+        color: white;
+        border-bottom: 2px solid rgba(255,255,255,0.3);
         margin-bottom: 20px;
     }
     
@@ -182,6 +343,34 @@ st.markdown("""
     .sidebar img:hover {
         transform: scale(1.05);
         transition: transform 0.3s ease;
+    }
+    
+    /* Make sidebar more blue according to brand color */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1f77b4 0%, #1565c0 100%);
+        color: white;
+    }
+    
+    /* Style sidebar headers */
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] h4, 
+    [data-testid="stSidebar"] h5, 
+    [data-testid="stSidebar"] h6, 
+    [data-testid="stSidebar"] strong {
+        color: white !important;
+    }
+    
+    /* Style sidebar text */
+    [data-testid="stSidebar"] p, 
+    [data-testid="stSidebar"] label {
+        color: rgba(255,255,255,0.9) !important;
+    }
+    
+    /* Style sidebar separators */
+    [data-testid="stSidebar"] hr {
+        background-color: rgba(255,255,255,0.2);
     }
     
     /* Enhanced progress bar */
@@ -195,6 +384,39 @@ st.markdown("""
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
+    }
+    
+    /* Style for sidebar expander - make it static blue whether expanded or collapsed */
+    [data-testid="stSidebar"] [data-testid="stExpander"] {
+        background-color: rgba(0, 40, 80, 0.6);
+        border-radius: 8px;
+        padding: 5px;
+        margin-bottom: 10px;
+    }
+    
+    /* Style for sidebar expander content area */
+    [data-testid="stSidebar"] [data-testid="stExpander"] > div:nth-child(2) {
+        background-color: transparent;
+        padding: 10px 5px;
+        margin-top: 5px;
+    }
+    
+    /* Style for sidebar expander header */
+    [data-testid="stSidebar"] [data-testid="stExpander"] > div:nth-child(1) {
+        color: white !important;
+    }
+    
+    /* Style for inputs inside sidebar expanders */
+    [data-testid="stSidebar"] [data-testid="stExpander"] input[type="text"],
+    [data-testid="stSidebar"] [data-testid="stExpander"] input[type="password"] {
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+    
+    /* Style for input placeholders inside sidebar expanders */
+    [data-testid="stSidebar"] [data-testid="stExpander"] input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -431,35 +653,72 @@ def setup_sidebar() -> Dict[str, Any]:
     # API Configuration
     st.sidebar.markdown("### 🤖 AI Configuration")
     
-    openai_key = st.sidebar.text_input(
-        "OpenAI API Key",
-        type="password",
-        help="Optional - Enter your OpenAI API key for enhanced AI analysis",
-        placeholder="sk-..."
-    )
+    # Show BYOK status with modern styling
+    if ALLOW_BYOK:
+        st.sidebar.markdown("""
+        <div class="byok-section">
+            <div class="byok-title">
+                <span class="byok-letter-b">B</span>
+                <span class="byok-letter-y">Y</span>
+                <span class="byok-letter-o">O</span>
+                <span class="byok-letter-k">K</span>
+            </div>
+            <p class="byok-description">Bring Your Own Key</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.sidebar.markdown("""
+        <div class="byok-section">
+            <div class="byok-title">🔑 API Key Mode</div>
+            <p class="byok-description">Using server-provided API keys for analysis operations.</p>
+            <span class="server-keys-badge">SERVER KEYS</span>
+        </div>
+        """, unsafe_allow_html=True)
     
-    anthropic_key = st.sidebar.text_input(
-        "Anthropic API Key",
-        type="password",
-        help="Optional - Enter your Anthropic API key for enhanced AI analysis",
-        placeholder="sk-ant-..."
-    )
-    
+    # Demo mode checkbox
     demo_mode = st.sidebar.checkbox(
         "Demo Mode",
-        value=False,
+        value=DEMO_MODE,
         help="Use realistic mock data for demonstration purposes"
     )
+    
+    # API Key input fields with modern styling
+    with st.sidebar.expander("🔐 API Keys", expanded=ALLOW_BYOK):
+        openai_key = st.text_input(
+            "OpenAI API Key",
+            type="password",
+            help="Enter your OpenAI API key for analysis" + (" (BYOK enabled)" if ALLOW_BYOK else ""),
+            placeholder="sk-...",
+            disabled=not ALLOW_BYOK and SERVER_KEY.startswith("sk-")
+        )
+        
+        anthropic_key = st.text_input(
+            "Anthropic API Key",
+            type="password",
+            help="Optional - Enter your Anthropic API key for enhanced AI analysis",
+            placeholder="sk-ant-..."
+        )
+        
+        serpapi_key = st.text_input(
+            "SERPAPI Key",
+            type="password",
+            help="Optional - Enter your SERPAPI key for enhanced data collection",
+            placeholder="Your SERPAPI key"
+        )
     
     # Initialize AI clients
     openai_client = None
     anthropic_client = None
     
-    if openai_key and not demo_mode:
+    # Use user key if provided, otherwise fall back to server key
+    active_openai_key = openai_key if openai_key else SERVER_KEY
+    
+    if active_openai_key and not demo_mode:
         try:
             import openai
-            openai_client = openai.OpenAI(api_key=openai_key)
-            st.sidebar.success("✅ OpenAI connected")
+            openai_client = openai.OpenAI(api_key=active_openai_key)
+            key_source = "user" if openai_key else "server"
+            st.sidebar.success(f"✅ OpenAI connected (using {key_source} key)")
         except Exception as e:
             st.sidebar.error(f"❌ OpenAI connection failed: {str(e)}")
     
@@ -574,6 +833,7 @@ def setup_sidebar() -> Dict[str, Any]:
     return {
         "openai_client": openai_client,
         "anthropic_client": anthropic_client,
+        "serpapi_key": serpapi_key,
         "demo_mode": demo_mode,
         "company_name": company_name,
         "company_focus": company_focus,
@@ -1178,7 +1438,10 @@ def run_competitive_analysis(competitor_name: str, config: Dict[str, Any]) -> Op
             return None
         
         # Initialize agents
-        data_agent = create_data_collection_agent(demo_mode=config.get('demo_mode', False))
+        data_agent = create_data_collection_agent(
+            demo_mode=config.get('demo_mode', False),
+            serpapi_key=config.get('serpapi_key')
+        )
         
         analysis_engine = AIAnalysisEngine(
             openai_client=config.get('openai_client'),
