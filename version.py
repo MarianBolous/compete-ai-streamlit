@@ -1,11 +1,11 @@
 """CompeteAI version information."""
 
 # This file is automatically updated by the release process
-__version__ = "0.3.0"
+__version__ = "2.0.0"
 
 # Major.Minor.Patch version components
-VERSION_MAJOR = 0
-VERSION_MINOR = 3
+VERSION_MAJOR = 2
+VERSION_MINOR = 0
 VERSION_PATCH = 0
 
 # Development status

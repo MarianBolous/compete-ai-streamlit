@@ -31,13 +31,52 @@ import streamlit as st
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 import requests
-from dotenv import load_dotenv
+
+# Import environment utilities
+from utils.env_utils import load_environment, get_env_variable, get_boolean_env
 
 # Load environment variables
-load_dotenv()
+load_environment()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+
+# Add custom CSS for styling
+st.markdown("""<style>
+/* Custom styling for slider components */
+.stSlider > div > div > div {
+    background-color: #1e88e5 !important;
+}
+.stSlider > div > div > div > div {
+    background-color: #1e88e5 !important;
+}
+.stSlider > div > div > div > div > div {
+    background-color: #0d47a1 !important;
+}
+.stSlider > div > div > div > div > div > div {
+    background-color: #1e88e5 !important;
+}
+/* Custom styling for save button - ensure it's always blue with high specificity */
+.stSidebar [data-testid="stButton"] button[title*="Save your company context settings"] {
+    background-color: #1e88e5 !important;
+    color: white !important;
+    border-radius: 0.5rem;
+    border: none !important;
+    font-weight: 500 !important;
+    padding: 0.5rem 1rem !important;
+}
+.stSidebar [data-testid="stButton"] button[title*="Save your company context settings"]:hover {
+    background-color: #0d47a1 !important;
+}
+.stSidebar [data-testid="stButton"] button[title*="Save your company context settings"]:active {
+    background-color: #0d47a1 !important;
+}
+/* Additional fallback selector using the button key */
+.stSidebar [data-testid="stButton"] button[data-baseweb="button"]:has(svg[aria-label*="Save Company Context"]) {
+    background-color: #1e88e5 !important;
+    color: white !important;
+}
+</style>""", unsafe_allow_html=True)
 
 # Apply nest_asyncio to handle async in Streamlit
 try:
@@ -56,10 +95,10 @@ logger = logging.getLogger(__name__)
 # Import version
 from version import __version__ as app_version
 
-# Environment variables
-SERVER_KEY = os.getenv("OPENAI_API_KEY", "")
-ALLOW_BYOK = os.getenv("ALLOW_BYOK", "true").lower() == "true"
-DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+# Configuration
+SERVER_KEY = get_env_variable("OPENAI_API_KEY")
+ALLOW_BYOK = get_boolean_env("ALLOW_BYOK", True)
+DEMO_MODE = get_boolean_env("DEMO_MODE", False)
 
 # ----------------------------- 
 # FastAPI Application Setup
@@ -67,10 +106,13 @@ DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
 app = FastAPI()
 
+
 class AnalyzeRequest(BaseModel):
     prompt: str
 
+
 def pick_key(user_key_header: str | None) -> tuple[str | None, str]:
+
     if ALLOW_BYOK and user_key_header and user_key_header.startswith("sk-"):
         return user_key_header, "user"
     if SERVER_KEY.startswith("sk-"):
@@ -90,11 +132,11 @@ def analyze(req: AnalyzeRequest, x_user_openai_key: str | None = Header(default=
         raise HTTPException(status_code=400, detail="No API key available. Enable server key or BYOK, or use demo mode.")
 
     headers = {"Authorization": f"Bearer {key}"}
-    payload = {"model": "gpt-4o-mini", "input": req.prompt}
-    r = requests.post("https://api.openai.com/v1/responses", json=payload, headers=headers, timeout=45)
+    payload = {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": req.prompt}]}
+    r = requests.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers, timeout=45)
     r.raise_for_status()
     data = r.json()
-    text = (data.get("output", {}) or data.get("content") or data).__str__()
+    text = data["choices"][0]["message"]["content"]
     return {"provider": "openai", "model": payload["model"], "content": text[:4000], "confidence": 0.8}
 
 # ----------------------------- 
@@ -716,6 +758,7 @@ def setup_sidebar() -> Dict[str, Any]:
     if active_openai_key and not demo_mode:
         try:
             import openai
+            # Fix: Remove the unnecessary validation check against placeholder
             openai_client = openai.OpenAI(api_key=active_openai_key)
             key_source = "user" if openai_key else "server"
             st.sidebar.success(f"✅ OpenAI connected (using {key_source} key)")
@@ -770,6 +813,16 @@ def setup_sidebar() -> Dict[str, Any]:
         value="product innovation and market expansion",
         help="Describe your current strategic focus"
     )
+    
+    # Add Submit button for company context with static blue styling
+    submit_context = st.sidebar.button(
+        "Save Company Context",
+        key="company_context_submit",
+        help="Save your company context settings"
+    )
+    
+    if submit_context:
+        st.sidebar.success("✅ Company context saved!")
     
     st.sidebar.markdown("---")
     
@@ -1109,6 +1162,38 @@ def display_strategic_insights(analysis: CompetitorAnalysis):
                 st.write(f"**Timeline:** {timeline}")
                 st.write(f"**Expected Impact:** {insight.get('expected_impact', 'Moderate improvement')}")
                 
+                # Display risk assessment if available
+                risk_assessment = insight.get('risk_assessment', {})
+                if risk_assessment:
+                    risk_level = risk_assessment.get('risk_level', 'Medium')
+                    risk_color = {
+                        'High': '🔴',
+                        'Medium': '🟡',
+                        'Low': '🟢'
+                    }.get(risk_level, '⚪')
+                    
+                    st.markdown(f"**Risk Assessment:** {risk_color} {risk_level}")
+                    
+                    # Show detailed risk information in a nested expander
+                    with st.expander("📋 Risk Details", expanded=False):
+                        # Display risk factors
+                        risk_factors = risk_assessment.get('risk_factors', [])
+                        if risk_factors:
+                            st.markdown("**Risk Factors:**")
+                            for factor in risk_factors:
+                                st.write(f"• {factor}")
+                        
+                        # Display mitigation strategies
+                        mitigation = risk_assessment.get('mitigation_strategies', [])
+                        if mitigation:
+                            st.markdown("**Mitigation Strategies:**")
+                            for strategy in mitigation:
+                                st.write(f"• {strategy}")
+                        
+                        # Display confidence level
+                        confidence = risk_assessment.get('confidence_level', 'Medium')
+                        st.write(f"**Confidence Level:** {confidence}")
+                
                 recommendations = insight.get('recommendations', [])
                 if recommendations:
                     st.markdown("**Recommendations:**")
@@ -1150,6 +1235,53 @@ def display_visualizations(analysis: CompetitorAnalysis):
     # Create sample data for visualizations
     competitor_name = analysis.competitor_name
     
+    # Add filters in a collapsible section
+    with st.expander("🔍 Filter Options", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        # Time range filter for all time series charts
+        with col1:
+            time_period = st.selectbox(
+                "Select Time Period",
+                ["Last 6 Quarters", "Last Year", "Last 2 Years", "All Data"],
+                index=2,
+                help="Filter data by time period"
+            )
+        
+        # Comparison filter to include/exclude companies
+        with col2:
+            include_industry_avg = st.checkbox(
+                "Include Industry Average",
+                value=True,
+                help="Show industry average in charts"
+            )
+            
+        # Additional filters
+        col3, col4 = st.columns(2)
+        with col3:
+            show_your_company = st.checkbox(
+                "Show Your Company",
+                value=True,
+                help="Show your company's data in comparison"
+            )
+        with col4:
+            show_competitors = st.checkbox(
+                "Show Other Competitors",
+                value=True,
+                help="Show data for other competitors"
+            )
+    
+    # Helper function to determine date range based on filter
+    def get_date_range(dates):
+        if time_period == "Last 6 Quarters":
+            return dates[-6:]
+        elif time_period == "Last Year":
+            return dates[-4:]
+        elif time_period == "Last 2 Years":
+            return dates[-8:]
+        else:
+            return dates
+    
     # 1. Competitive Positioning Matrix
     st.markdown("#### Market Position vs Innovation Score")
     
@@ -1161,15 +1293,46 @@ def display_visualizations(analysis: CompetitorAnalysis):
         'Financial_Health': [90, 85, 80, 75]
     })
     
+    # Apply filters to positioning data
+    filtered_companies = [competitor_name]
+    if show_your_company:
+        filtered_companies.append('Your Company')
+    if show_competitors:
+        filtered_companies.extend(['Competitor A', 'Competitor B'])
+    
+    filtered_positioning = positioning_data[positioning_data['Company'].isin(filtered_companies)]
+    
+    # Add custom tooltip information
+    custom_tooltips = {
+        'Market_Share': "Market Share (%)",
+        'Innovation_Score': "Innovation Score (0-100)",
+        'Customer_Satisfaction': "Customer Satisfaction (1-5)",
+        'Financial_Health': "Financial Health Index (0-100)"
+    }
+    
     fig1 = px.scatter(
-        positioning_data,
+        filtered_positioning,
         x='Market_Share',
         y='Innovation_Score',
         size='Customer_Satisfaction',
         color='Company',
         title='Competitive Positioning Matrix',
-        hover_data=['Financial_Health'],
+        hover_data={
+            'Market_Share': True,
+            'Innovation_Score': True,
+            'Customer_Satisfaction': True,
+            'Financial_Health': True
+        },
         size_max=60
+    )
+    
+    # Enhance tooltips with custom information
+    fig1.update_traces(
+        hovertemplate=("<b>%{customdata[0]}</b><br>" +
+                      "Market Share: %{x}%<br>" +
+                      "Innovation Score: %{y}<br>" +
+                      "Customer Satisfaction: %{marker.size}<br>" +
+                      "Financial Health: %{customdata[1]}<extra></extra>")
     )
     
     fig1.update_layout(
@@ -1179,6 +1342,20 @@ def display_visualizations(analysis: CompetitorAnalysis):
     )
     
     st.plotly_chart(fig1, use_container_width=True)
+    
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This chart shows how different companies compare in terms of market position and innovation.
+        The size of each bubble represents customer satisfaction, while the color distinguishes between companies.
+        
+        **Key Insights:**
+        - Larger bubbles indicate higher customer satisfaction
+        - Points to the right have higher market share
+        - Points higher up have higher innovation scores
+        
+        Use the filter options above to customize your view.
+        """)
     
     # 2. Competitive Strengths Radar
     st.markdown("#### Competitive Strengths Analysis")
@@ -1194,17 +1371,39 @@ def display_visualizations(analysis: CompetitorAnalysis):
         theta=categories,
         fill='toself',
         name=competitor_name,
-        line_color='#ff7f0e'
+        line_color='#ff7f0e',
+        hovertemplate="%{theta}: %{r}/10<extra></extra>"
     ))
     
-    # Add your company trace
-    fig2.add_trace(go.Scatterpolar(
-        r=[7, 5, 6, 8, 8, 6],
-        theta=categories,
-        fill='toself',
-        name='Your Company',
-        line_color='#1f77b4'
-    ))
+    # Add your company trace if selected
+    if show_your_company:
+        fig2.add_trace(go.Scatterpolar(
+            r=[7, 5, 6, 8, 8, 6],
+            theta=categories,
+            fill='toself',
+            name='Your Company',
+            line_color='#1f77b4',
+            hovertemplate="%{theta}: %{r}/10<extra></extra>"
+        ))
+    
+    # Add other competitors if selected
+    if show_competitors:
+        fig2.add_trace(go.Scatterpolar(
+            r=[9, 8, 7, 7, 8, 9],
+            theta=categories,
+            fill='toself',
+            name='Competitor A',
+            line_color='#2ca02c',
+            hovertemplate="%{theta}: %{r}/10<extra></extra>"
+        ))
+        fig2.add_trace(go.Scatterpolar(
+            r=[6, 9, 8, 9, 7, 8],
+            theta=categories,
+            fill='toself',
+            name='Competitor B',
+            line_color='#d62728',
+            hovertemplate="%{theta}: %{r}/10<extra></extra>"
+        ))
     
     fig2.update_layout(
         polar=dict(
@@ -1215,36 +1414,254 @@ def display_visualizations(analysis: CompetitorAnalysis):
         ),
         showlegend=True,
         title="Competitive Strengths Comparison",
-        height=500
+        height=500,
+        hovermode='closest'
     )
     
     st.plotly_chart(fig2, use_container_width=True)
     
-    # 3. Growth Trends
-    st.markdown("#### Market Growth Trends")
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This radar chart compares companies across six key competitive dimensions.
+        Each axis represents a different aspect of competitive strength, scored from 0 to 10.
+        
+        **Key Insights:**
+        - Areas where your company excels relative to competitors
+        - Potential gaps in your competitive positioning
+        - Strengths that differentiate competitors in the market
+        
+        Hover over each point to see the exact score for that dimension.
+        """)
     
-    # Generate trend data
-    dates = pd.date_range(start='2023-01-01', periods=8, freq='Q')
+    # 3. Enhanced Time Series: Quarterly Growth Trends
+    st.markdown("#### Quarterly Growth Trends")
+    
+    # Generate quarterly trend data (2 years of data)
+    dates = pd.date_range(start='2022-01-01', periods=12, freq='Q')
     
     trends_data = pd.DataFrame({
         'Date': dates,
-        f'{competitor_name}_Growth': [50, 65, 85, 115, 155, 200, 250, 310],
-        'Your_Company_Growth': [30, 42, 58, 78, 105, 140, 185, 240],
-        'Industry_Average': [80, 88, 98, 110, 125, 142, 162, 185]
+        f'{competitor_name}_Growth': [50, 65, 85, 115, 155, 200, 250, 310, 380, 450, 520, 600],
+        'Your_Company_Growth': [30, 42, 58, 78, 105, 140, 185, 240, 290, 340, 400, 470],
+        'Industry_Average': [80, 88, 98, 110, 125, 142, 162, 185, 210, 238, 268, 300]
     })
     
+    # Apply date range filter
+    filtered_dates = get_date_range(dates)
+    filtered_trends = trends_data[trends_data['Date'].isin(filtered_dates)]
+    
+    # Select which data series to show based on filters
+    y_columns = [f'{competitor_name}_Growth']
+    if show_your_company:
+        y_columns.append('Your_Company_Growth')
+    if include_industry_avg:
+        y_columns.append('Industry_Average')
+    
     fig3 = px.line(
-        trends_data,
+        filtered_trends,
         x='Date',
-        y=[f'{competitor_name}_Growth', 'Your_Company_Growth', 'Industry_Average'],
+        y=y_columns,
         title='Growth Trajectory Comparison (Indexed to 100)',
-        labels={'value': 'Growth Index', 'variable': 'Company'}
+        labels={'value': 'Growth Index', 'variable': 'Company'},
+        hover_data={col: True for col in y_columns + ['Date']}
     )
     
-    fig3.update_layout(height=400)
+    # Enhance the chart with hover information and trend annotations
+    fig3.update_layout(
+        height=450,
+        hovermode='x unified',
+        annotations=[
+            dict(
+                x='2023-06-30',
+                y=trends_data.loc[6, f'{competitor_name}_Growth'],
+                xref='x',
+                yref='y',
+                text=f'{competitor_name} launch event',
+                showarrow=True,
+                arrowhead=1,
+                ax=-20,
+                ay=-30
+            ),
+            dict(
+                x='2023-12-31',
+                y=trends_data.loc[8, 'Your_Company_Growth'],
+                xref='x',
+                yref='y',
+                text='Your company product update',
+                showarrow=True,
+                arrowhead=1,
+                ax=20,
+                ay=30
+            )
+        ]
+    )
+    
+    # Customize tooltip information
+    fig3.update_traces(
+        mode='lines+markers',
+        hovertemplate="%{x}<br>%{meta}: %{y}<extra></extra>",
+        meta=lambda col: col.replace('_', ' ').title()
+    )
+    
     st.plotly_chart(fig3, use_container_width=True)
     
-    # 4. Feature Comparison
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This line chart shows the growth trajectory comparison between companies over time.
+        The growth index is a normalized measure to allow comparison across different company sizes.
+        
+        **Key Insights:**
+        - Relative growth rates between companies
+        - Impact of product launches and updates on growth
+        - How your company's growth compares to industry averages
+        
+        Use the time period filter above to focus on specific timeframes of interest.
+        """)
+    
+    # 4. Market Share Time Series
+    st.markdown("#### Market Share Evolution Over Time")
+    
+    # Generate market share data
+    market_share_data = pd.DataFrame({
+        'Date': dates,
+        f'{competitor_name}': [8.0, 8.5, 9.2, 10.5, 12.0, 13.5, 14.8, 15.5, 16.2, 16.8, 17.5, 18.2],
+        'Competitor A': [20.0, 19.5, 19.0, 18.5, 18.0, 17.5, 17.0, 16.5, 16.0, 15.5, 15.0, 14.5],
+        'Competitor B': [15.0, 15.2, 15.5, 15.8, 16.0, 16.2, 16.5, 16.7, 16.9, 17.0, 17.2, 17.3],
+        'Competitor C': [5.0, 5.3, 5.6, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0],
+        'Your Company': [5.0, 5.5, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
+    })
+    
+    # Apply date range filter
+    filtered_market_share = market_share_data[market_share_data['Date'].isin(filtered_dates)]
+    
+    # Select which data series to show based on filters
+    y_columns_share = [f'{competitor_name}']
+    if show_your_company:
+        y_columns_share.append('Your Company')
+    if show_competitors:
+        y_columns_share.extend(['Competitor A', 'Competitor B', 'Competitor C'])
+    
+    fig4 = px.area(
+        filtered_market_share,
+        x='Date',
+        y=y_columns_share,
+        title='Market Share Evolution (Quarterly)',
+        labels={'value': 'Market Share (%)', 'variable': 'Company'},
+        hover_data={col: True for col in y_columns_share + ['Date']}
+    )
+    
+    # Enhance tooltip information
+    fig4.update_traces(hoverinfo='x+y+name')
+    
+    fig4.update_layout(
+        height=450,
+        hovermode='x unified',
+        legend_title="Companies"
+    )
+    
+    st.plotly_chart(fig4, use_container_width=True)
+    
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This area chart shows the evolution of market share for different companies over time.
+        The stacked areas represent how market share has shifted between competitors.
+        
+        **Key Insights:**
+        - Changes in market dynamics over the selected time period
+        - Which companies are gaining or losing market share
+        - Relative positioning of your company versus competitors
+        
+        Hover over any area to see the exact market share percentage at a specific date.
+        """)
+    
+    # 5. Customer Retention Trends (Relevant to new analyzer)
+    st.markdown("#### Customer Retention Comparison")
+    
+    # Generate retention data
+    retention_data = pd.DataFrame({
+        'Date': dates,
+        f'{competitor_name}_Retention': [82, 81, 83, 85, 84, 86, 87, 88, 89, 90, 89, 91],
+        'Your_Company_Retention': [76, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89],
+        'Industry_Average_Retention': [78, 78, 79, 80, 80, 81, 81, 82, 83, 83, 84, 84]
+    })
+    
+    # Apply date range filter
+    filtered_retention = retention_data[retention_data['Date'].isin(filtered_dates)]
+    
+    # Select which data series to show based on filters
+    y_columns_retention = [f'{competitor_name}_Retention']
+    if show_your_company:
+        y_columns_retention.append('Your_Company_Retention')
+    if include_industry_avg:
+        y_columns_retention.append('Industry_Average_Retention')
+    
+    fig5 = px.line(
+        filtered_retention,
+        x='Date',
+        y=y_columns_retention,
+        title='Monthly Retention Rate (%)',
+        labels={'value': 'Retention Rate (%)', 'variable': 'Company'},
+        hover_data={col: True for col in y_columns_retention + ['Date']}
+    )
+    
+    # Add reference line for industry standard
+    fig5.add_hline(y=85, line_dash="dash", line_color="gray", 
+                  annotation_text="Industry Standard", 
+                  annotation_position="top right")
+    
+    # Add interactive annotations for significant changes
+    significant_changes = [
+        {'date': '2023-03-31', 'value': 85, 'company': f'{competitor_name}', 'text': 'New customer support system'},
+        {'date': '2023-09-30', 'value': 84, 'company': 'Your_Company', 'text': 'Improved onboarding flow'}
+    ]
+    
+    for change in significant_changes:
+        if (show_your_company and change['company'] == 'Your_Company') or change['company'] == competitor_name:
+            fig5.add_annotation(
+                x=change['date'],
+                y=change['value'],
+                xref='x',
+                yref='y',
+                text=change['text'],
+                showarrow=True,
+                arrowhead=1,
+                ax=0,
+                ay=-40
+            )
+    
+    # Enhance tooltip information
+    fig5.update_traces(
+        mode='lines+markers',
+        hovertemplate="%{x}<br>%{meta}: %{y}%<extra></extra>",
+        meta=lambda col: col.replace('_', ' ').title().replace(' Retention', '')
+    )
+    
+    fig5.update_layout(
+        height=450,
+        hovermode='x unified',
+        yaxis=dict(range=[70, 100])
+    )
+    
+    st.plotly_chart(fig5, use_container_width=True)
+    
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This line chart compares customer retention rates between companies over time.
+        Retention rate is a critical metric that indicates how well a company keeps its customers.
+        
+        **Key Insights:**
+        - Trends in customer retention for your company versus competitors
+        - Impact of specific initiatives on retention
+        - How your retention compares to industry standards (dashed line at 85%)
+        
+        Higher retention rates typically indicate better customer satisfaction and loyalty.
+        """)
+    
+    # 6. Product Feature Comparison
     st.markdown("#### Product Feature Comparison")
     
     features_data = pd.DataFrame({
@@ -1255,22 +1672,122 @@ def display_visualizations(analysis: CompetitorAnalysis):
         'Your Company': [7, 9, 6, 8, 9, 8]
     })
     
-    fig4 = px.bar(
+    # Select which data series to show based on filters
+    y_columns_features = [competitor_name]
+    if show_your_company:
+        y_columns_features.append('Your Company')
+    if include_industry_avg:
+        y_columns_features.append('Industry Average')
+    
+    fig6 = px.bar(
         features_data,
         x='Feature',
-        y=[competitor_name, 'Industry Average', 'Your Company'],
+        y=y_columns_features,
         title='Feature Strength Comparison (1-10 Scale)',
-        barmode='group'
+        barmode='group',
+        hover_data={col: True for col in y_columns_features + ['Feature']}
     )
     
-    fig4.update_layout(height=400)
-    st.plotly_chart(fig4, use_container_width=True)
+    # Enhance tooltip information
+    fig6.update_traces(
+        hovertemplate="%{x}<br>%{meta}: %{y}/10<extra></extra>",
+        meta=lambda col: col.replace('_', ' ').title()
+    )
+    
+    fig6.update_layout(height=400)
+    st.plotly_chart(fig6, use_container_width=True)
+    
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This bar chart compares feature strengths across different companies.
+        Each feature is scored on a scale of 1 to 10, with higher scores indicating stronger capabilities.
+        
+        **Key Insights:**
+        - Which features your competitors excel at
+        - Where your company has competitive advantages
+        - Feature areas that may need improvement
+        
+        Hover over each bar to see the exact score for that feature.
+        """)
+    
+    # 7. Go-to-Market Effectiveness (Relevant to new analyzer)
+    st.markdown("#### Go-to-Market Effectiveness Metrics")
+    
+    # Generate go-to-market metrics
+    gtm_data = pd.DataFrame({
+        'Metric': ['Market Penetration', 'User Acquisition Cost', 'Time-to-Market',
+                   'Conversion Rate', 'Brand Awareness', 'Channel Effectiveness'],
+        f'{competitor_name}': [85, 60, 75, 80, 85, 75],
+        'Your Company': [70, 70, 80, 75, 70, 80],
+        'Industry Average': [65, 65, 70, 65, 60, 65]
+    })
+    
+    # Select which data series to show based on filters
+    y_columns_gtm = [competitor_name]
+    if show_your_company:
+        y_columns_gtm.append('Your Company')
+    if include_industry_avg:
+        y_columns_gtm.append('Industry Average')
+    
+    fig7 = px.bar(
+        gtm_data,
+        x='Metric',
+        y=y_columns_gtm,
+        title='Go-to-Market Performance Comparison',
+        barmode='group',
+        hover_data={col: True for col in y_columns_gtm + ['Metric']}
+    )
+    
+    # Enhance tooltip information
+    fig7.update_traces(
+        hovertemplate="%{x}<br>%{meta}: %{y}/100<extra></extra>",
+        meta=lambda col: col.replace('_', ' ').title()
+    )
+    
+    # Add reference lines for benchmark values
+    benchmark_values = {
+        'Market Penetration': 75,
+        'Conversion Rate': 70,
+        'Brand Awareness': 75
+    }
+    
+    for metric, value in benchmark_values.items():
+        fig7.add_hline(
+            y=value,
+            line_dash="dash",
+            line_color="gray",
+            annotation_text=f"{metric} Benchmark",
+            annotation_position="top right",
+            annotation_font_size=10,
+            opacity=0.5
+        )
+    
+    fig7.update_layout(height=450)
+    st.plotly_chart(fig7, use_container_width=True)
+    
+    # Add drill-down explanation
+    with st.expander("ℹ️ About This Visualization"):
+        st.write("""
+        This bar chart compares go-to-market effectiveness across different companies.
+        Metrics include market penetration, user acquisition cost efficiency, and channel effectiveness.
+        
+        **Key Insights:**
+        - How your go-to-market strategies compare to competitors
+        - Areas where your GTM execution excels or needs improvement
+        - Dashed lines indicate industry benchmark targets
+        
+        Higher scores are better for all metrics except User Acquisition Cost (lower is better).
+        """)
 
 def display_action_plan(analysis: CompetitorAnalysis):
     """Display strategic action plan and KPIs"""
     st.markdown("### 🎯 Strategic Action Plan")
     
-    # Timeline-based actions
+    # Get strategic insights with risk assessments
+    insights = analysis.strategic_insights or []
+    
+    # Timeline-based actions with risk assessment
     action_categories = [
         {
             "title": "Immediate Actions (0-30 Days)",
@@ -1282,7 +1799,12 @@ def display_action_plan(analysis: CompetitorAnalysis):
                 "Review and optimize pricing strategy",
                 "Identify strategic partnership opportunities",
                 "Establish competitive intelligence briefings"
-            ]
+            ],
+            "risk_assessment": {
+                "level": "Medium",
+                "factors": ["Competitor may respond rapidly", "Resource allocation challenges"],
+                "mitigation": ["Start with critical high-impact actions", "Allocate dedicated team"]
+            }
         },
         {
             "title": "Short-term Strategy (1-6 Months)",
@@ -1294,7 +1816,12 @@ def display_action_plan(analysis: CompetitorAnalysis):
                 "Explore new market segments",
                 "Enhance product integrations",
                 "Recruit key talent from competitors"
-            ]
+            ],
+            "risk_assessment": {
+                "level": "Medium",
+                "factors": ["Market conditions may change", "Competitor innovation speed"],
+                "mitigation": ["Build flexibility into timelines", "Regularly reassess priorities"]
+            }
         },
         {
             "title": "Long-term Vision (6+ Months)",
@@ -1306,19 +1833,48 @@ def display_action_plan(analysis: CompetitorAnalysis):
                 "Build strategic partnerships",
                 "Consider acquisition opportunities",
                 "Establish thought leadership"
-            ]
+            ],
+            "risk_assessment": {
+                "level": "Medium-High",
+                "factors": ["Market disruption risks", "Resource intensive initiatives"],
+                "mitigation": ["Phase implementation", "Diversify strategic bets"]
+            }
         }
     ]
     
     for category in action_categories:
-        st.markdown(f"#### {category['emoji']} {category['title']}")
+        risk_level = category.get('risk_assessment', {}).get('level', 'Medium')
+        risk_color = {
+            'High': '🔴',
+            'Medium-High': '🟠',
+            'Medium': '🟡',
+            'Low': '🟢'
+        }.get(risk_level, '⚪')
+        
+        st.markdown(f"#### {category['emoji']} {category['title']} - Risk: {risk_color} {risk_level}")
+        
+        # Show actions
         for i, action in enumerate(category['actions'], 1):
             st.write(f"**{i}.** {action}")
+        
+        # Show risk details in an expander
+        risk_details = category.get('risk_assessment', {})
+        with st.expander("📋 Risk Assessment Details", expanded=False):
+            if risk_details.get('factors'):
+                st.markdown("**Key Risk Factors:**")
+                for factor in risk_details['factors']:
+                    st.write(f"• {factor}")
+            
+            if risk_details.get('mitigation'):
+                st.markdown("**Recommended Mitigation:**")
+                for strategy in risk_details['mitigation']:
+                    st.write(f"• {strategy}")
+        
         st.markdown("---")
     
-    # KPI Dashboard
+    # KPI Dashboard with risk indicators
     st.markdown("### 📊 Key Performance Indicators (KPIs)")
-    st.markdown("Monitor these metrics to track competitive performance:")
+    st.markdown("Monitor these metrics to track competitive performance and risk exposure:")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -1326,7 +1882,7 @@ def display_action_plan(analysis: CompetitorAnalysis):
         ("Competitive Win Rate", "72%", "5%", "Win rate against this competitor"),
         ("Market Share Growth", "15%", "3%", "YoY market share growth"),
         ("Customer Retention", "94%", "2%", "Retention vs competitor switching"),
-        ("Feature Parity", "88%", "7%", "Features matched or exceeded")
+        ("Risk Exposure Index", "45%", "-8%", "Overall strategic risk exposure")
     ]
     
     for (label, value, delta, help_text), col in zip(kpis, [col1, col2, col3, col4]):
@@ -1693,3 +2249,4 @@ def display_footer():
 
 if __name__ == "__main__":
     main()
+

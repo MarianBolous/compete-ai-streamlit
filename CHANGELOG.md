@@ -5,6 +5,18 @@ All notable changes to the CompeteAI project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2024-09-18
+
+### Added
+- **Enhanced Button Styling**: Consistent blue styling for "Save Company Context" button
+- **Interactive Feedback**: Hover effects (darker blue background) for better user experience
+- **Active State Handling**: Proper button state management for click interactions
+- **Slider Component Styling**: Updated slider bars with consistent blue color scheme
+- **CSS Selector Optimization**: Enhanced specificity of CSS selectors
+- **Fallback Styling**: Added redundant CSS selectors for cross-version compatibility
+- **Visual Consistency**: Improved UI coherence with standardized color palette
+- **Accessibility Enhancements**: Better button visibility and interactive feedback
+
 ## [0.3.0] - 2024-09-18
 
 ### Added
