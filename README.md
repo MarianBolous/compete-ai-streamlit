@@ -1,5 +1,12 @@
 # CompeteAI - Competitive Intelligence Platform
 
+[![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.0%2B-red.svg)](https://streamlit.io/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-API-green.svg)](https://platform.openai.com/)
+[![Anthropic](https://img.shields.io/badge/Anthropic-API-purple.svg)](https://console.anthropic.com/)
+[![Visualization](https://img.shields.io/badge/Visualization-Plotly-orange.svg)](https://plotly.com/)
+[![Data Science](https://img.shields.io/badge/Data%20Science-Pandas-yellow.svg)](https://pandas.pydata.org/)
+
 A production-ready competitive intelligence platform that provides real-time analysis of competitors using AI-powered multi-agent systems with comprehensive guardrails and multi-model API integration.
 
 ## 🚀 Features

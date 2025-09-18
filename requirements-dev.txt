@@ -1,0 +1,24 @@
+# Development dependencies for CompeteAI
+
+# Code quality and formatting
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+mypy>=1.0.0
+pylint>=2.17.0
+
+# Testing tools
+pytest>=7.3.0
+pytest-cov>=4.1.0
+coverage>=7.2.0
+
+# Documentation
+sphinx>=6.1.0
+sphinx-rtd-theme>=1.2.0
+
+# Pre-commit hooks
+pre-commit>=3.3.0
+
+# Other development tools
+ipdb>=0.13.13
+ipython>=8.11.0

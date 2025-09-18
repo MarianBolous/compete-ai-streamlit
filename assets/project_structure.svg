@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <!-- Styling -->
+  <style>
+    .box { fill: #f8f9fa; stroke: #1f77b4; stroke-width: 2; }
+    .agent-box { fill: #e6f3ff; stroke: #0d6efd; stroke-width: 2; }
+    .data-box { fill: #fff3cd; stroke: #ffc107; stroke-width: 2; }
+    .ui-box { fill: #d1e7dd; stroke: #198754; stroke-width: 2; }
+    .utils-box { fill: #f8d7da; stroke: #dc3545; stroke-width: 2; }
+    .title { font-family: Arial; font-size: 24px; font-weight: bold; }
+    .subtitle { font-family: Arial; font-size: 18px; }
+    .label { font-family: Arial; font-size: 14px; }
+    .code { font-family: monospace; font-size: 12px; }
+    .arrow { stroke: #666; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="40" text-anchor="middle" class="title">CompeteAI - Project Structure</text>
+  
+  <!-- Main app -->
+  <rect x="300" y="70" width="200" height="60" rx="5" ry="5" class="ui-box" />
+  <text x="400" y="105" text-anchor="middle" class="subtitle">streamlit_app.py</text>
+  <text x="400" y="125" text-anchor="middle" class="label">Main UI & Entry Point</text>
+  
+  <!-- Agents Module -->
+  <rect x="100" y="200" width="600" height="180" rx="5" ry="5" class="box" />
+  <text x="400" y="225" text-anchor="middle" class="subtitle">Agents Module</text>
+  
+  <!-- Individual agent components -->
+  <rect x="120" y="250" width="170" height="100" rx="5" ry="5" class="agent-box" />
+  <text x="205" y="275" text-anchor="middle" class="label">orchestrator.py</text>
+  <text x="205" y="295" text-anchor="middle" class="code">- Workflow Management</text>
+  <text x="205" y="315" text-anchor="middle" class="code">- Agent Coordination</text>
+  <text x="205" y="335" text-anchor="middle" class="code">- Progress Callbacks</text>
+  
+  <rect x="315" y="250" width="170" height="100" rx="5" ry="5" class="agent-box" />
+  <text x="400" y="275" text-anchor="middle" class="label">analysis_engine.py</text>
+  <text x="400" y="295" text-anchor="middle" class="code">- Multi-Model Routing</text>
+  <text x="400" y="315" text-anchor="middle" class="code">- Confidence Scoring</text>
+  <text x="400" y="335" text-anchor="middle" class="code">- SWOT Analysis</text>
+  
+  <rect x="510" y="250" width="170" height="100" rx="5" ry="5" class="agent-box" />
+  <text x="595" y="275" text-anchor="middle" class="label">data_collection_agent.py</text>
+  <text x="595" y="295" text-anchor="middle" class="code">- Multi-Source Gathering</text>
+  <text x="595" y="315" text-anchor="middle" class="code">- Guardrails & Rate Limiting</text>
+  <text x="595" y="335" text-anchor="middle" class="code">- Iterative Refinement</text>
+  
+  <!-- Data Module -->
+  <rect x="100" y="410" width="280" height="100" rx="5" ry="5" class="data-box" />
+  <text x="240" y="435" text-anchor="middle" class="subtitle">Data</text>
+  <text x="240" y="465" text-anchor="middle" class="label">- Competitor Profiles</text>
+  <text x="240" y="485" text-anchor="middle" class="label">- Market Analysis Schemas</text>
+  <text x="240" y="505" text-anchor="middle" class="label">- Cache & Persistence</text>
+  
+  <!-- Assets Module -->
+  <rect x="420" y="410" width="280" height="100" rx="5" ry="5" class="utils-box" />
+  <text x="560" y="435" text-anchor="middle" class="subtitle">Assets</text>
+  <text x="560" y="465" text-anchor="middle" class="label">- Documentation Diagrams</text>
+  <text x="560" y="485" text-anchor="middle" class="label">- UI Components</text>
+  <text x="560" y="505" text-anchor="middle" class="label">- Branding Resources</text>
+  
+  <!-- Connection lines -->
+  <path d="M 400 130 L 400 200" class="arrow" />
+  
+  <path d="M 205 350 L 205 410" class="arrow" />
+  <path d="M 400 350 L 400 380 L 240 380 L 240 410" class="arrow" />
+  <path d="M 595 350 L 595 380 L 560 380 L 560 410" class="arrow" />
+  
+  <!-- Legend -->
+  <rect x="600" y="530" width="20" height="15" class="ui-box" />
+  <text x="625" y="543" class="code" text-anchor="start">UI Components</text>
+  
+  <rect x="600" y="550" width="20" height="15" class="agent-box" />
+  <text x="625" y="563" class="code" text-anchor="start">Agent Components</text>
+  
+  <rect x="600" y="570" width="20" height="15" class="data-box" />
+  <text x="625" y="583" class="code" text-anchor="start">Data Components</text>
+  
+  <rect x="600" y="590" width="20" height="15" class="utils-box" />
+  <text x="625" y="603" class="code" text-anchor="start">Utility Components</text>
+</svg>

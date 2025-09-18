@@ -43,13 +43,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ----------------------------- 
+# Import version
+from version import __version__ as app_version
+
+# ----------------------------- 
+# Logo and Asset Paths
+import os
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+LOGO_PATH = os.path.join(ASSETS_DIR, 'logo.svg')
 # -----------------------------
 # Page Configuration
 # -----------------------------
 
+# Load SVG logo for page icon
+with open(LOGO_PATH, "r") as f:
+    logo_svg = f.read()
+
 st.set_page_config(
     page_title="CompeteAI - Advanced Competitive Intelligence",
-    page_icon="🎯",
+    page_icon=logo_svg,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -60,17 +73,19 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* Main header styling */
     .main-header {
-        font-size: 3rem;
+        font-size: 2.8rem;
         font-weight: 700;
         color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 0.5rem;
         background: linear-gradient(90deg, #1f77b4, #ff7f0e);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        padding-top: 10px;
     }
     
+    /* Enhanced metric containers with animations */
     .metric-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;
@@ -78,15 +93,30 @@ st.markdown("""
         color: white;
         margin: 10px 0;
         text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     
+    .metric-container:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+    
+    /* Enhanced analysis cards */
     .analysis-card {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 10px;
-        padding: 20px;
-        margin: 10px 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 25px;
+        margin: 15px 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        border-left: 4px solid #1f77b4;
+    }
+    
+    .analysis-card:hover {
+        box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+        border-left: 4px solid #ff7f0e;
     }
     
     .threat-high { 
@@ -102,30 +132,42 @@ st.markdown("""
         color: white; 
     }
     
+    /* Enhanced notification styling */
+    .notification {
+        padding: 20px;
+        border-radius: 12px;
+        margin: 15px 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .notification::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 5px;
+        height: 100%;
+        background: rgba(255,255,255,0.3);
+    }
+    
     .success-notification {
         background: linear-gradient(135deg, #28a745, #20c997);
         color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
     }
     
     .error-notification {
         background: linear-gradient(135deg, #dc3545, #c82333);
         color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
     }
     
     .warning-notification {
         background: linear-gradient(135deg, #ffc107, #e0a800);
         color: black;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
     }
     
+    /* Enhanced sidebar styling */
     .sidebar-logo {
         text-align: center;
         padding: 20px;
@@ -136,8 +178,23 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
+    /* Add subtle hover effect to sidebar image */
+    .sidebar img:hover {
+        transform: scale(1.05);
+        transition: transform 0.3s ease;
+    }
+    
+    /* Enhanced progress bar */
     .stProgress > div > div > div > div {
-        background-color: #1f77b4;
+        background: linear-gradient(90deg, #1f77b4, #ff7f0e);
+        background-size: 200% 100%;
+        animation: progress-bar-animation 2s infinite linear;
+    }
+    
+    @keyframes progress-bar-animation {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -360,8 +417,9 @@ def setup_sidebar() -> Dict[str, Any]:
     """Setup sidebar configuration and return user context"""
     
     # Logo and title
-    st.sidebar.markdown('<div class="sidebar-logo">🎯 CompeteAI</div>', unsafe_allow_html=True)
-    st.sidebar.markdown("**Advanced Competitive Intelligence Platform**")
+    st.sidebar.image(LOGO_PATH, width=120)
+    st.sidebar.markdown("**CompeteAI**")
+    st.sidebar.markdown("Advanced Competitive Intelligence Platform")
     
     # Display import status
     if not AGENTS_OK:
@@ -1205,13 +1263,17 @@ def main():
     config = setup_sidebar()
     
     # Main header
-    st.markdown('<h1 class="main-header">🎯 CompeteAI Platform</h1>', unsafe_allow_html=True)
+    col_logo, col_title = st.columns([1, 4])
+    with col_logo:
+        st.image(LOGO_PATH, width=80)
+    with col_title:
+        st.markdown('<h1 class="main-header">CompeteAI Platform</h1>', unsafe_allow_html=True)
     st.markdown("### Advanced AI-Powered Competitive Intelligence & Strategic Analysis")
     
     # Demo mode notification
     if config['demo_mode']:
         st.markdown("""
-        <div class="success-notification">
+        <div class="notification success-notification">
             <h3>🚀 Demo Mode Active</h3>
             <p><strong>Welcome to CompeteAI!</strong> Currently running in demo mode with realistic mock data.</p>
             <p><strong>Features:</strong> Market positioning • SWOT analysis • Strategic recommendations • 
@@ -1334,20 +1396,33 @@ def display_landing_page():
 def display_footer():
     """Display application footer"""
     st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: #666; padding: 30px; background-color: #f8f9fa; 
-                border-radius: 10px; margin-top: 40px;'>
-        <h3 style='color: #1f77b4; margin-bottom: 15px;'>🎯 CompeteAI Platform</h3>
-        <p style='font-size: 1.1em; margin-bottom: 10px;'>
-            <strong>Advanced Competitive Intelligence & Strategic Analysis</strong>
-        </p>
-        <p>Multi-Agent AI Architecture | Real-time Market Analysis | Strategic Insights | Actionable Recommendations</p>
-        <p style='margin-top: 15px;'><em>Powered by OpenAI GPT-4 and Anthropic Claude | Built with Streamlit</em></p>
-        <p style='margin-top: 10px; font-size: 0.9em;'>
-            Transform your competitive strategy with AI-powered intelligence
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    
+    # Create two columns for logo and text
+    col1, col2 = st.columns([1, 5])
+    
+    # Display logo in the first column
+    with col1:
+        st.image(LOGO_PATH, width=100)
+    
+    # Display footer text in the second column
+    with col2:
+        footer_html = f"""
+        <div style='color: #666; padding: 20px 10px;'>
+            <h3 style='color: #1f77b4; margin-bottom: 15px;'>CompeteAI Platform</h3>
+            <p style='font-size: 1.1em; margin-bottom: 10px;'>
+                <strong>Advanced Competitive Intelligence & Strategic Analysis</strong>
+            </p>
+            <p>Multi-Agent AI Architecture | Real-time Market Analysis | Strategic Insights | Actionable Recommendations</p>
+            <p style='margin-top: 15px;'><em>Powered by OpenAI GPT-4 and Anthropic Claude | Built with Streamlit</em></p>
+            <p style='margin-top: 10px; font-size: 0.9em;'>
+                Transform your competitive strategy with AI-powered intelligence
+            </p>
+            <p style='margin-top: 8px; font-size: 0.85em; color: #999;'>
+                Version: {app_version}
+            </p>
+        </div>
+        """
+        st.markdown(footer_html, unsafe_allow_html=True)
 
 # -----------------------------
 # Application Entry Point
